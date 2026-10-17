@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/ivan7112/Byodsec-Backend#readme",
   "dependencies": {
+    "express": "^5.3.0",
     "https": "^1.0.0",
     "tls": "^0.0.1"
   }

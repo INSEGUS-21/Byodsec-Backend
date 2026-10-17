@@ -17,4 +17,6 @@ createServer({
     ca: fs.readFileSync(CERTCA),
     cert: fs.readFileSync(CERT),
     key: fs.readFileSync(KEY),
-    }, app).listen(PORT);
+    }, app).listen(PORT, () =>{
+        console.log("Servidor Https Desplegado");
+    })
