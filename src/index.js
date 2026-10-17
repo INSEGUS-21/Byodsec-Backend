@@ -6,9 +6,9 @@ import { loadBackendApiUsers } from './api/api-Users.js';
 import mongoose from 'mongoose'
 
 const PORT=8080;
-const CERTCA="ponerRutaArchivo";
-const CERT="Ruta a certificado servidor";
-const KEY= "ruta a archivo .key"
+const CERTCA="./src/certs/ca.crt";
+const CERT="./src/certs/server.crt";
+const KEY= "./src/certs/server.key";
 const app= express();
 
 app.use(express.json())
@@ -44,5 +44,6 @@ createServer({
     ca: fs.readFileSync(CERTCA),
     cert: fs.readFileSync(CERT),
     key: fs.readFileSync(KEY),
-    }, app).listen(PORT);
-
+    }, app).listen(PORT, () =>{
+        console.log("Servidor Https Desplegado");
+    })
