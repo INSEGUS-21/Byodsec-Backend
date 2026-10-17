@@ -1,7 +1,8 @@
 
 import {createServer} from "https";
-import "tls"
+import * as tls from "tls";
 import express from "express";
+import * as fs from "fs";
 
 
 const PORT=8080;
