@@ -61,7 +61,7 @@ export function loadBackendApiUsers(app,dbUsers){
 
 
         if (!(username && password)) {
-             return res.status(400).send("incomplete params");
+             return res.status(400).send("missing params");
         }
 
 
@@ -101,7 +101,7 @@ export function loadBackendApiUsers(app,dbUsers){
         const {username, password} = req.body;
 
          if (!(username && password)) {
-             return res.status(400).send("incomplete params");
+             return res.status(400).send("missing params");
         }
 
         try {
