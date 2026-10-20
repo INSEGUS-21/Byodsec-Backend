@@ -26,9 +26,9 @@ const UserSchema= new mongoose.Schema({
         unique: true,
         required: true
     },
-    password: String,
+    password: {type: String, required: true},
     tokenVersion: { type: Number, default: 0 },
-    required: true
+    
 });
 
 export const dbUsers = conn.model('User', UserSchema, 'users-data');
@@ -37,6 +37,7 @@ loadBackendApiUsers(app, dbUsers);
 
 
 createServer({
+    minVersion: 'TLSv1.3',
     requestCert: true,
     rejectUnauthorized: false,
     ca: fs.readFileSync(CERTCA),

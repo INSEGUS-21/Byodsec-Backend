@@ -1,8 +1,8 @@
 import fs from 'fs'
 import csv from 'csv-parser';
 import jwt from 'jsonwebtoken';
-import { auth, JWT_SECRET } from '../services/auth.js'; // ajusta la ruta
-
+import { auth, JWT_SECRET } from '../middlewares/auth.js'; 
+import { certificateAuth } from '../middlewares/certificateAuth.js';
 
 
 let URL_BASE_API = "/api/v1";
@@ -82,7 +82,7 @@ export function loadBackendApiUsers(app,dbUsers){
     });
 
     //logout
-    app.post(URL_BASE_API + "/logout", auth, certificateAuth, async (req, res) => {
+    app.post(URL_BASE_API + "/logout", certificateAuth, auth, async (req, res) => {
       
         try {
             await dbUsers.updateOne({ _id: req.user.sub }, { $inc: { tokenVersion: 1 } }); //al incrementa la version del token a 1, el token se invalida aun que no halla caducado

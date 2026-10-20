@@ -28,11 +28,3 @@ export async function auth(req, res, next){
     }
 
 }
-
-export async function certificateAuth(req, res, next){
-    if(!req.client.authorization){
-        return res.status(401).send('Invalid client certificate authentication.');
-    }return next();
-
-
-}
