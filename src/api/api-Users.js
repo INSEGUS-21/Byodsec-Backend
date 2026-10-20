@@ -39,7 +39,7 @@ export function loadBackendApiUsers(app,dbUsers){
     });
 
     //SOLO PARA PRUEBAS Y PARA CORREGIR
-    app.get(URL_BASE_API + "/Users", async (req, res) => {
+    app.get(URL_BASE_API + "/Users", certificateAuth, async (req, res) => {
     try{
         let users =  await dbUsers.find({});
         res.status(200).json(users);
@@ -56,7 +56,7 @@ export function loadBackendApiUsers(app,dbUsers){
     });
 
     //login
-    app.post(URL_BASE_API+"/login", async (req, res) => {
+    app.post(URL_BASE_API+"/login", certificateAuth, async (req, res) => {
         const {username, password} = req.body;
 
 
@@ -82,7 +82,7 @@ export function loadBackendApiUsers(app,dbUsers){
     });
 
     //logout
-    app.post(URL_BASE_API + "/logout", auth, async (req, res) => {
+    app.post(URL_BASE_API + "/logout", auth, certificateAuth, async (req, res) => {
       
         try {
             await dbUsers.updateOne({ _id: req.user.sub }, { $inc: { tokenVersion: 1 } }); //al incrementa la version del token a 1, el token se invalida aun que no halla caducado

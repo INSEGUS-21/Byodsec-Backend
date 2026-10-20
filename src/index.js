@@ -36,8 +36,6 @@ export const dbUsers = conn.model('User', UserSchema, 'users-data');
 loadBackendApiUsers(app, dbUsers);
 
 
-
-
 createServer({
     requestCert: true,
     rejectUnauthorized: false,
