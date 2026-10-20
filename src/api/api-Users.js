@@ -94,8 +94,6 @@ export function loadBackendApiUsers(app,dbUsers){
     });
 
 
-
-
     //register
     app.post(URL_BASE_API+"/register", async (req, res) => {
         const {username, password} = req.body;

@@ -37,9 +37,11 @@ loadBackendApiUsers(app, dbUsers);
 
 
 createServer({
-    minVersion: 'TLSv1.3',
     requestCert: true,
     rejectUnauthorized: false,
+    minVersion: "TLSv1.3",
+    maxVersion: "TLSv1.3",
+    // ciphers: "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
     ca: fs.readFileSync(CERTCA),
     cert: fs.readFileSync(CERT),
     key: fs.readFileSync(KEY),
