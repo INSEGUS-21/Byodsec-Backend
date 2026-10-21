@@ -12,7 +12,7 @@ const KEY= "./src/certs/server.key";
 const app= express();
 
 app.use(express.json())
-
+app.use(cors());
 
 const MONGO_URL= process.env.MONGO_URL || "";
 const conn = mongoose.createConnection(MONGO_URL);
