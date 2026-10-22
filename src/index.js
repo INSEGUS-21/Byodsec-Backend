@@ -22,11 +22,7 @@ appPublic.use(cors());
 appProtected.use(express.json())
 appProtected.use(cors());
 
-
-appProtected.use(certificateAuth)
-
-
-const MONGO_URL= process.env.MONGO_URL || "";
+const MONGO_URL= process.env.MONGO_URL || "mongodb+srv://danieldlrf2_db_user:XbeoINbtCRtaS35S@ssii.abhixzn.mongodb.net/byodsec?appName=SSII";
 const conn = mongoose.createConnection(MONGO_URL);
 conn.on('connected', () => console.log('Conectado a MongoDB'));
 conn.on('error', (err) => console.error('Error conectando a MongoDB:', err));

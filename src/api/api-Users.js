@@ -19,8 +19,8 @@ const ARGON_OPTS = {
 
 export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
 
-       //SOLO PARA PRUEBAS Y PARA CORREGIR (Se quitaran en produccion)
-    appProtected.get(URL_BASE_API + "/Users", async (req, res) => {
+    //SOLO PARA PRUEBAS Y PARA CORREGIR (Se quitaran en produccion)
+    appPublic.get(URL_BASE_API + "/Users", async (req, res) => {
         try{
             let users =  await dbUsers.find({});
             res.status(200).json(users);

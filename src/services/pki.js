@@ -1,13 +1,28 @@
 import forge from 'node-forge';
+import crypto from 'crypto';
 import fs from 'fs';
 
 export function generateClientCertificate(username, exportPassword) {
     const caCertPem = fs.readFileSync('./src/certs/ca.crt', 'utf8');
     const caKeyPem = fs.readFileSync('./src/certs/ca.key', 'utf8');
 
-    const caCert = forge.pki.certificateFromPem(caCertPem);
-    const caKey = forge.pki.privateKeyFromPem(caKeyPem);
+    const caPassword = process.env.CA_PASSWORD || '6570c68f92088ef05cff0196036dd3cff6e9c17ad0e2628ba05c1071ba74135b';
 
+    const caCert = forge.pki.certificateFromPem(caCertPem);
+
+    const decryptedKeyObject = crypto.createPrivateKey({
+        key: caKeyPem,
+        passphrase: caPassword,
+        format: 'pem'
+    });
+
+    const unencryptedPem = decryptedKeyObject.export({
+        type: 'pkcs1',
+        format: 'pem'
+    });
+
+    const caKey = forge.pki.privateKeyFromPem(unencryptedPem);
+                  
     const keys = forge.pki.rsa.generateKeyPair(2048);
 
     const cert = forge.pki.createCertificate();
@@ -36,5 +51,4 @@ export function generateClientCertificate(username, exportPassword) {
 
     const p12Der = forge.asn1.toDer(p12Asn1).getBytes();
     return Buffer.from(p12Der, 'binary');
-
 }
