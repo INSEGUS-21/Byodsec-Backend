@@ -21,11 +21,12 @@ appPublic.use(cors());
 
 appProtected.use(express.json())
 appProtected.use(cors());
+appProtected.use(certificateAuth)
 
 const MONGO_URL= process.env.MONGO_URL || "mongodb+srv://danieldlrf2_db_user:XbeoINbtCRtaS35S@ssii.abhixzn.mongodb.net/byodsec?appName=SSII";
-const conn = mongoose.createConnection(MONGO_URL);
-conn.on('connected', () => console.log('Conectado a MongoDB'));
-conn.on('error', (err) => console.error('Error conectando a MongoDB:', err));
+const conn = await mongoose.createConnection(MONGO_URL).asPromise();
+console.log('MongoDB connected');
+conn.on('error', (err) => console.error('Error connecting MongoDB:', err));
 
 
 const UserSchema = new mongoose.Schema({
@@ -48,12 +49,16 @@ loadBackendApiUsers(appPublic, appProtected, dbUsers);
 
 
 createServer({
+    requestCert: false,
+    rejectUnauthorized: false,
+    maxVersion: "TLSv1.3",
     minVersion: 'TLSv1.3',
+    ciphers: "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
     ca: fs.readFileSync(CERTCA),
     cert: fs.readFileSync(CERT),
     key: fs.readFileSync(KEY),
 }, appPublic).listen(PORT_PUBLIC, () => {
-    console.log(`Portal de Registro activo en https://localhost:${PORT_PUBLIC}`);
+    console.log(`Register Portal open in https://localhost:${PORT_PUBLIC}`);
 });
 
 createServer({
@@ -61,10 +66,10 @@ createServer({
     rejectUnauthorized: true,
     minVersion: "TLSv1.3",
     maxVersion: "TLSv1.3",
-    // ciphers: "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
+    ciphers: "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
     ca: fs.readFileSync(CERTCA),
     cert: fs.readFileSync(CERT),
     key: fs.readFileSync(KEY),
 }, appProtected).listen(PORT_PROTECTED, () => {
-    console.log(`Gateway VPN mTLS activo en https://localhost:${PORT_PROTECTED}`);
+    console.log(`Gateway VPN mTLS open in https://localhost:${PORT_PROTECTED}`);
 });

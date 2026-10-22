@@ -1,7 +1,6 @@
 import fs from 'fs'
 import csv from 'csv-parser';
 import jwt from 'jsonwebtoken';
-
 import argon2 from 'argon2'
 import { generateClientCertificate } from '../services/pki.js'
 import { auth, JWT_SECRET } from '../middlewares/auth.js'; 
@@ -47,13 +46,9 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
     //login
     appProtected.post(URL_BASE_API+"/login", async (req, res) => {
         const {username, password} = req.body;
-
-
         if (!(username && password)) {
              return res.status(400).send("missing params");
         }
-
-
         try {
                 const user = await dbUsers.findOne({username}); //comprueba que existe usuario   
                 if(!user || !(await argon2.verify(user.hash, password))){
@@ -61,9 +56,7 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
                 }else{
                     const token = jwt.sign({ sub: user._id, tv: user.tokenVersion ?? 0 }, JWT_SECRET, { expiresIn: '1h' });   //crea token (ahora agrega tokenversion para invalidar tokens)
                     return res.status(200).json({ token });
-                }
-                                    
-                
+                }       
             } catch (error) {
                 console.log(error);
                 return res.sendStatus(500, "Server Error");
@@ -81,9 +74,6 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
             return res.sendStatus(500);
         }
     });
-
-
-
 
     //register
     appPublic.post(URL_BASE_API+"/register", async (req, res) => {
