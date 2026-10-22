@@ -104,6 +104,18 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
         }
     });
     
+    appProtected.get(URL_BASE_API + "/auth-trigger", (req, res) => {
+        res.send(`
+        <html>
+            <body>
+            <h3>Certificado autenticado con éxito</h3>
+            <script>
+                setTimeout(() => window.close(), 500);
+            </script>
+            </body>
+        </html>
+        `);
+    });
 
 
 }

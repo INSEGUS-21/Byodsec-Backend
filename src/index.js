@@ -16,11 +16,11 @@ const KEY= "./src/certs/server.key";
 const appPublic = express();
 const appProtected = express();
 
-appPublic.use(express.json())
 appPublic.use(cors());
+appPublic.use(express.json())
 
-appProtected.use(express.json())
 appProtected.use(cors());
+appProtected.use(express.json())
 appProtected.use(certificateAuth)
 
 const MONGO_URL= process.env.MONGO_URL || "mongodb+srv://danieldlrf2_db_user:XbeoINbtCRtaS35S@ssii.abhixzn.mongodb.net/byodsec?appName=SSII";
