@@ -1,9 +1,12 @@
 import fs from 'fs'
 import csv from 'csv-parser';
 import jwt from 'jsonwebtoken';
-import { auth, JWT_SECRET } from '../services/auth.js'; // ajusta la ruta
+
 import argon2 from 'argon2'
 import { generateClientCertificate } from '../services/pki.js'
+import { auth, JWT_SECRET } from '../middlewares/auth.js'; 
+
+
 
 let URL_BASE_API = "/api/v1";
 
@@ -53,7 +56,7 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
 
         try {
                 const user = await dbUsers.findOne({username}); //comprueba que existe usuario   
-                if(!user || user.password !== password){
+                if(!user || !(await argon2.verify(user.hash, password))){
                     return res.status(401).send("unautorized");
                 }else{
                     const token = jwt.sign({ sub: user._id, tv: user.tokenVersion ?? 0 }, JWT_SECRET, { expiresIn: '1h' });   //crea token (ahora agrega tokenversion para invalidar tokens)
@@ -78,6 +81,9 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
             return res.sendStatus(500);
         }
     });
+
+
+
 
     //register
     appPublic.post(URL_BASE_API+"/register", async (req, res) => {

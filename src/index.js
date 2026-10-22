@@ -5,6 +5,7 @@ import * as fs from "fs";
 import { loadBackendApiUsers } from './api/api-Users.js'; 
 import mongoose from 'mongoose'
 import cors from 'cors'
+import { certificateAuth } from './middlewares/certificateAuth.js';
 
 const PORT_PROTECTED=8443;
 const PORT_PUBLIC=8080;
@@ -27,15 +28,18 @@ conn.on('connected', () => console.log('Conectado a MongoDB'));
 conn.on('error', (err) => console.error('Error conectando a MongoDB:', err));
 
 
-const UserSchema= new mongoose.Schema({
+const UserSchema = new mongoose.Schema({
     username: {
         type: String,
         unique: true,
         required: true
     },
-    hash: String,
+    hash: {
+        type: String,
+        required: true
+    },
     tokenVersion: { type: Number, default: 0 },
-    certificateCN: { type:String, unique: true, sparse: true}
+    certificateCN: { type: String, unique: true, sparse: true }
 });
 
 export const dbUsers = conn.model('User', UserSchema, 'users-data');
@@ -55,7 +59,9 @@ createServer({
 createServer({
     requestCert: true,
     rejectUnauthorized: true,
-    minVersion: 'TLSv1.3',
+    minVersion: "TLSv1.3",
+    maxVersion: "TLSv1.3",
+    // ciphers: "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
     ca: fs.readFileSync(CERTCA),
     cert: fs.readFileSync(CERT),
     key: fs.readFileSync(KEY),
