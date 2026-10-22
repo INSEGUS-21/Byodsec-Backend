@@ -16,36 +16,8 @@ const ARGON_OPTS = {
 
 export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
 
-    //get load initial data
-    appProtected.get(URL_BASE_API+"/Users/loadInitialData", async (req, res)=> {
-        try{
-            const count = await dbUsers.countDocuments();
-            if (count > 0) return res.sendStatus(409);
-            const rows = [];
-            fs.createReadStream('./data/usersData.csv')
-            .pipe(csv())
-            .on('data', (row) => {
-                rows.push(row);
-            })
-            .on('end', async () => {
-                try {
-                    await dbUsers.create(rows);
-                    res.sendStatus(201);
-                } catch (err) {
-                    console.error(err);
-                    res.sendStatus(500);
-                }
-            })
-            .on('error', () => res.sendStatus(500));
-
-        }catch(err){
-            res.sendStatus(500);
-        }
-
-    });
-
     //SOLO PARA PRUEBAS Y PARA CORREGIR (Se quitaran en produccion)
-    appProtected.get(URL_BASE_API + "/Users", async (req, res) => {
+    appPublic.get(URL_BASE_API + "/Users", async (req, res) => {
         try{
             let users =  await dbUsers.find({});
             res.status(200).json(users);
