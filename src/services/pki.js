@@ -36,3 +36,5 @@ export function generateClientCertificate(username, exportPassword) {
 
     const p12Der = forge.asn1.toDer(p12Asn1).getBytes();
     return Buffer.from(p12Der, 'binary');
+
+}

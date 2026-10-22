@@ -5,7 +5,7 @@ import * as fs from "fs";
 import { loadBackendApiUsers } from './api/api-Users.js'; 
 import mongoose from 'mongoose'
 import cors from 'cors'
-import { certificateAuth } from '../middlewares/certificateAuth.js';
+import { certificateAuth } from './middlewares/certificateAuth.js';
 
 const PORT_PROTECTED=8443;
 const PORT_PUBLIC=8080;
@@ -22,22 +22,28 @@ appPublic.use(cors());
 appProtected.use(express.json())
 appProtected.use(cors());
 
+
+appProtected.use(certificateAuth)
+
+
 const MONGO_URL= process.env.MONGO_URL || "";
 const conn = mongoose.createConnection(MONGO_URL);
 conn.on('connected', () => console.log('Conectado a MongoDB'));
 conn.on('error', (err) => console.error('Error conectando a MongoDB:', err));
 
 
-const UserSchema= new mongoose.Schema({
+const UserSchema = new mongoose.Schema({
     username: {
         type: String,
         unique: true,
         required: true
     },
-    hash: String,
-    password: {type: String, required: true},
+    hash: {
+        type: String,
+        required: true
+    },
     tokenVersion: { type: Number, default: 0 },
-    certificateCN: { type:String, unique: true, sparse: true}
+    certificateCN: { type: String, unique: true, sparse: true }
 });
 
 export const dbUsers = conn.model('User', UserSchema, 'users-data');
@@ -66,5 +72,3 @@ createServer({
 }, appProtected).listen(PORT_PROTECTED, () => {
     console.log(`Gateway VPN mTLS activo en https://localhost:${PORT_PROTECTED}`);
 });
-
-appProtected.use(certificateAuth());
