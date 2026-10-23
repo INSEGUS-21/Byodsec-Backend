@@ -6,6 +6,10 @@ import { loadBackendApiUsers } from './api/api-Users.js';
 import mongoose from 'mongoose'
 import cors from 'cors'
 import { certificateAuth } from './middlewares/certificateAuth.js';
+import { initRevokedCertificateModel } from './models/RevokedCertificate.js';
+import dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
+dns.setServers(['1.1.1.1', '8.8.8.8']);
 
 const PORT_PROTECTED=8443;
 const PORT_PUBLIC=8080;
@@ -31,7 +35,7 @@ const conn = await mongoose.createConnection(MONGO_URL).asPromise();
 console.log('MongoDB connected');
 conn.on('error', (err) => console.error('Error connecting MongoDB:', err));
 
-
+export const RevokedCertificate = initRevokedCertificateModel(conn);
 const UserSchema = new mongoose.Schema({
     username: {
         type: String,
@@ -45,6 +49,7 @@ const UserSchema = new mongoose.Schema({
     tokenVersion: { type: Number, default: 0 },
     certificateCN: { type: String, unique: true, sparse: true }
 });
+
 
 export const dbUsers = conn.model('User', UserSchema, 'users-data');
 
