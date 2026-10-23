@@ -7,7 +7,6 @@ import { auth, JWT_SECRET } from '../middlewares/auth.js';
 import {stringify} from "csv-stringify";
 
 
-
 let URL_BASE_API = "/api/v1";
 
 const ARGON_OPTS = {
@@ -52,10 +51,11 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
         }
         try {
                 const user = await dbUsers.findOne({username}); //comprueba que existe usuario   
-                if(!user || !(await argon2.verify(user.hash, password))){
-                    console.log(user);
-                    return res.status(401).send("unautorized");
-                }else{
+                    if (!user
+                        || req.socket.getPeerCertificate().subject.CN !== user.certificateCN
+                        || !(await argon2.verify(user.hash, password))) {
+                            return res.status(401).send("unautorized");
+                    }else{
                     const token = jwt.sign({ sub: user._id, tv: user.tokenVersion ?? 0 }, JWT_SECRET, { expiresIn: '1h' });   //crea token (ahora agrega tokenversion para invalidar tokens)
 
                     const dateTime=(new Date()).toDateString();
@@ -153,5 +153,13 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
         `);
     });
 
-
+    appProtected.post("/messages", auth, (req, res) => {
+        const { message } = req.body;
+        if (!message) {
+            return res.sendStatus(400, "Missing params");
+        } 
+        return res.status(200).json({
+            reply: `Servidor Gateway VPN mTLS procesó tu mensaje: "${message}" en fecha ${new Date().toISOString()}`
+        });
+    })
 }
