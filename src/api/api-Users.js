@@ -6,7 +6,6 @@ import { generateClientCertificate } from '../services/pki.js'
 import { auth, JWT_SECRET } from '../middlewares/auth.js'; 
 
 
-
 let URL_BASE_API = "/api/v1";
 
 const ARGON_OPTS = {
@@ -119,5 +118,13 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
         `);
     });
 
-
+    appProtected.post("/messages", auth, (req, res) => {
+        const { message } = req.body;
+        if (!message) {
+            return res.sendStatus(400, "Missing params");
+        } 
+        return res.status(200).json({
+            reply: `Servidor Gateway VPN mTLS procesó tu mensaje: "${message}" en fecha ${new Date().toISOString()}`
+        });
+    })
 }
