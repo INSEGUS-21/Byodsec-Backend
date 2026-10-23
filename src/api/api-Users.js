@@ -51,9 +51,11 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
         }
         try {
                 const user = await dbUsers.findOne({username}); //comprueba que existe usuario   
-                if(!user || !(await argon2.verify(user.hash, password))){
-                    return res.status(401).send("unautorized");
-                }else{
+                    if (!user
+                        || req.socket.getPeerCertificate().subject.CN !== user.certificateCN
+                        || !(await argon2.verify(user.hash, password))) {
+                            return res.status(401).send("unautorized");
+                    }else{
                     const token = jwt.sign({ sub: user._id, tv: user.tokenVersion ?? 0 }, JWT_SECRET, { expiresIn: '1h' });   //crea token (ahora agrega tokenversion para invalidar tokens)
                     return res.status(200).json({ token });
                 }       
