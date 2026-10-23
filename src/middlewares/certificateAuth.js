@@ -1,7 +1,5 @@
 
 import { RevokedCertificate } from '../index.js';
-
-
 import {stringify} from "csv-stringify";
 import * as fs from "fs"
 
