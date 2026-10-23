@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import argon2 from 'argon2'
 import { generateClientCertificate } from '../services/pki.js'
 import { auth, JWT_SECRET } from '../middlewares/auth.js'; 
+import { RevokedCertificate } from '../index.js';
 import {stringify} from "csv-stringify";
 
 
@@ -15,6 +16,29 @@ const ARGON_OPTS = {
     timeCost: 2,
     parallelism: 1
 };
+
+
+function validatePassword(password) {
+  const errors = [];
+
+  if (password.length < 8) {
+    errors.push(`Debe tener al menos 8 caracteres`);
+  }
+  if (!/\p{Lu}/u.test(password)) {
+    errors.push("Debe contener al menos una mayúscula");
+  }
+  if (!/\p{Ll}/u.test(password)) {
+    errors.push("Debe contener al menos una minuscula");
+  }
+  if (!/\d/.test(password)) {
+    errors.push("Debe contener al menos un número");
+  }
+  if (!/[^\p{L}\p{N}\s]/u.test(password)) {
+    errors.push("Debe contener al menos un carácter especial");
+  }
+
+  return { valid: errors.length === 0, errors };
+}
 
 export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
 
@@ -118,6 +142,9 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
          if (!(username && password)) {
              return res.status(400).send("missing params");
         }
+        if (!validatePassword(password).valid){
+            return res.status(400).send("the password's format is incorrect")
+        }
 
         try {
                 if (await dbUsers.findOne({ username })) {
@@ -162,4 +189,87 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
             reply: `Servidor Gateway VPN mTLS procesó tu mensaje: "${message}" en fecha ${new Date().toISOString()}`
         });
     })
+
+    appProtected.put(URL_BASE_API +"/reissue-identity", auth, async (req,res) => {
+        const {username_old, password_old, username_new, password_new } = req.body;
+        if (!validatePassword(password_new).valid){
+            return res.status(400).send("the new password's format is incorrect")
+        }
+        if (!(username_old && password_old && username_new && password_new)) {
+             return res.status(400).send("missing params");
+        }
+        
+        try{
+            const user = await dbUsers.findOne({ username: username_old });
+            if (!user) {
+                return res.status(404).send('Usser not found');
+            }
+            const isPasswordValid = await argon2.verify(user.hash, password_old);
+            if (!isPasswordValid) {
+                return res.status(401).send('incorrect password');
+            }
+            if (username_old !== username_new) {
+                const usernameExists = await dbUsers.findOne({ username: username_new });
+                if (usernameExists) {
+                    return res.status(400).send('There is a user registered with this username');
+                }
+            }
+            if (user.certificateCN) {
+                await RevokedCertificate.create({
+                    certificateCN: user.certificateCN,
+                    username: username_old,
+                    revokedAt: new Date(),
+                    reason: 'Identity and credentials update'
+                });
+            }
+            const p12Der = await generateClientCertificate(username_new, password_new);
+            const hash_new = await argon2.hash(password_new, ARGON_OPTS);
+                    
+            user.username = username_new;
+            user.hash = hash_new;
+            user.certificateCN = username_new;
+            user.tokenVersion = (user.tokenVersion || 0) + 1; 
+
+            await user.save();
+            res.setHeader('Content-Type', 'application/x-pkcs12');
+            res.setHeader('Content-Disposition', `attachment; filename="${username_new}.p12"`);
+                    
+            return res.status(201).send(p12Der);
+
+            } catch (error) {
+                return res.status(500).send("Server Error");
+            }
+        
+    });
+    appProtected.post(URL_BASE_API + "/revoke", auth, async (req, res) => {
+        try {
+            const user = await dbUsers.findOne({ _id: req.user.sub });
+            if (!user) {
+                return res.status(404).send("User not found");
+            }
+
+            if (!user.certificateCN) {
+                return res.status(400).send("User does not have an active certificate");
+            }
+
+            if (typeof RevokedCertificate !== 'undefined') {
+                await RevokedCertificate.create({
+                    certificateCN: user.certificateCN,
+                    username: user.username,
+                    revokedAt: new Date(),
+                    reason: req.body.reason || 'Explicit user revocation (Lost/Stolen device)'
+                });
+            }
+
+            user.tokenVersion = (user.tokenVersion || 0) + 1;
+            await user.save();
+
+            return res.status(200).send("Certificate revoked successfully. Connection closed.");
+
+        } catch (error) {
+            console.error("Error revoking certificate:", error);
+            return res.status(500).send("Server Error");
+        }
+    });
+    
 }

@@ -1,0 +1,4 @@
+timestamp,total_users,successful,failed,total_time_ms,avg_latency_ms,throughput_req_sec,peak_ram_mb,avg_cpu_percent,peak_cpu_percent
+2026-10-23T09:06:26.463Z,300,300,0,8264,5648.02,36.30,105.82,5.01,36.00
+2026-10-23T09:08:13.247Z,300,300,0,8443,5883.51,35.53,107.20,1.46,7.80
+2026-10-23T09:09:54.334Z,300,300,0,9740,6568.95,30.80,105.00,5.50,37.50
