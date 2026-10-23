@@ -5,6 +5,7 @@ import argon2 from 'argon2'
 import { generateClientCertificate } from '../services/pki.js'
 import { auth, JWT_SECRET } from '../middlewares/auth.js'; 
 import { RevokedCertificate } from '../index.js';
+import {stringify} from "csv-stringify";
 
 
 let URL_BASE_API = "/api/v1";
@@ -74,10 +75,32 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
         }
         try {
                 const user = await dbUsers.findOne({username}); //comprueba que existe usuario   
-                if(!user || !(await argon2.verify(user.hash, password))){
-                    return res.status(401).send("unautorized");
-                }else{
+                    if (!user
+                        || req.socket.getPeerCertificate().subject.CN !== user.certificateCN
+                        || !(await argon2.verify(user.hash, password))) {
+                            return res.status(401).send("unautorized");
+                    }else{
                     const token = jwt.sign({ sub: user._id, tv: user.tokenVersion ?? 0 }, JWT_SECRET, { expiresIn: '1h' });   //crea token (ahora agrega tokenversion para invalidar tokens)
+
+                    const dateTime=(new Date()).toDateString();
+                    const type="Login";
+                    const message=`The username with id: ${user._id} has logged in`;
+                    const datos={
+                                "datetime":dateTime,
+                                "type":type,
+                                "message":message
+                            }
+                    
+                    /*const csv=stringify([datos],
+                        {
+                            header:false,
+                            columns: ['datetime', 'type', 'message']
+                            
+                        });*/
+                    const csv="\n"+Object.values(datos).join(',');
+                            
+                    fs.appendFileSync("./log/log.csv",csv);
+
                     return res.status(200).json({ token });
                 }       
             } catch (error) {
@@ -91,6 +114,20 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
       
         try {
             await dbUsers.updateOne({ _id: req.user.sub }, { $inc: { tokenVersion: 1 } }); //al incrementa la version del token a 1, el token se invalida aun que no halla caducado
+
+            const dateTime=(new Date()).toDateString();
+            const type="Logout";
+            const message=`User with id: ${req.user.sub} has logged out`;
+            const datos={
+                "datetime":dateTime,
+                "type":type,
+                "message":message
+            }
+
+            const csv="\n" + Object.values(datos).join(',');
+            
+            fs.appendFileSync("./log/log.csv",csv);
+
             return res.status(200).send("session closed");
         } catch (error) {
             console.log(error);
