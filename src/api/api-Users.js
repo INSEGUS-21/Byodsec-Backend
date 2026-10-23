@@ -234,6 +234,20 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
             res.setHeader('Content-Type', 'application/x-pkcs12');
             res.setHeader('Content-Disposition', `attachment; filename="${username_new}.p12"`);
                     
+            const dateTime=(new Date()).toDateString();
+            const type="reissue";
+            const message=`The username with id: ${user._id} has regenerated certificate.`;
+            const datos={
+                            "datetime":dateTime,
+                            "type":type,
+                            "message":message
+                        }
+                  
+                        
+            const csv="\n"+Object.values(datos).join(',');
+                            
+            fs.appendFileSync("./log/log.csv",csv);
+
             return res.status(201).send(p12Der);
 
             } catch (error) {
