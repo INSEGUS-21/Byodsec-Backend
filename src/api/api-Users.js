@@ -222,7 +222,7 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
                     reason: 'Identity and credentials update'
                 });
             }
-            const p12Der = await generateClientCertificate(username_new, password_new);
+            const p12Der = generateClientCertificate(username_new, password_new);
             const hash_new = await argon2.hash(password_new, ARGON_OPTS);
                     
             user.username = username_new;
