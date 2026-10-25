@@ -1,41 +1,48 @@
-import {createServer} from "https";
-import * as tls from "tls";
+import { createServer as createHttpsServer } from "https";
+import { createServer as createHttpServer } from "http";
 import express from "express";
 import * as fs from "fs";
 import { loadBackendApiUsers } from './api/api-Users.js'; 
-import mongoose from 'mongoose'
-import cors from 'cors'
+import mongoose from 'mongoose';
+import cors from 'cors';
 import { certificateAuth } from './middlewares/certificateAuth.js';
 import { initRevokedCertificateModel } from './models/RevokedCertificate.js';
 import dns from 'node:dns';
+
 dns.setDefaultResultOrder('ipv4first');
 dns.setServers(['1.1.1.1', '8.8.8.8']);
 
-const PORT_PROTECTED=8443;
-const PORT_PUBLIC=8080;
-const CERTCA="./src/certs/ca.crt";
-const CERT="./src/certs/server.crt";
-const KEY= "./src/certs/server.key";
+const IS_BENCHMARK_NO_TLS = process.env.NO_TLS === 'true';
+
+const PORT_PROTECTED = 8443;
+const PORT_PUBLIC = 8080;
+const CERTCA = "./src/certs/ca.crt";
+const CERT = "./src/certs/server.crt";
+const KEY = "./src/certs/server.key";
 
 const appPublic = express();
 const appProtected = express();
 
 appPublic.use(cors());
-appPublic.use(express.json())
+appPublic.use(express.json());
 
 appProtected.use(cors({
   origin: "https://localhost:5173",
   credentials: true,
 }));
-appProtected.use(express.json())
-appProtected.use(certificateAuth)
+appProtected.use(express.json());
 
-const MONGO_URL= process.env.MONGO_URL || "mongodb+srv://danieldlrf2_db_user:XbeoINbtCRtaS35S@ssii.abhixzn.mongodb.net/byodsec?appName=SSII";
+if (!IS_BENCHMARK_NO_TLS) {
+    appProtected.use(certificateAuth);
+}
+
+const MONGO_URL = process.env.MONGO_URL || "mongodb+srv://danieldlrf2_db_user:XbeoINbtCRtaS35S@ssii.abhixzn.mongodb.net/byodsec?appName=SSII";
 const conn = await mongoose.createConnection(MONGO_URL).asPromise();
 console.log('MongoDB connected');
 conn.on('error', (err) => console.error('Error connecting MongoDB:', err));
 
 export const RevokedCertificate = initRevokedCertificateModel(conn);
+
 const UserSchema = new mongoose.Schema({
     username: {
         type: String,
@@ -50,34 +57,41 @@ const UserSchema = new mongoose.Schema({
     certificateCN: { type: String, unique: true, sparse: true }
 });
 
-
 export const dbUsers = conn.model('User', UserSchema, 'users-data');
 
 loadBackendApiUsers(appPublic, appProtected, dbUsers);
 
+if (IS_BENCHMARK_NO_TLS) {
+    createHttpServer(appProtected).listen(PORT_PROTECTED, () => {
+        console.log(`BENCHMARK MODE - Gateway HTTP in http://localhost:${PORT_PROTECTED}`);
+    });
+    createHttpServer(appPublic).listen(PORT_PUBLIC, () => {
+        console.log(`BENCHMARK MODE - Register portal HTTP in http://localhost:${PORT_PUBLIC}`);
+    });
+} else {
+    createHttpsServer({
+        requestCert: false,
+        rejectUnauthorized: false,
+        maxVersion: "TLSv1.3",
+        minVersion: 'TLSv1.3',
+        ciphers: "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
+        ca: fs.readFileSync(CERTCA),
+        cert: fs.readFileSync(CERT),
+        key: fs.readFileSync(KEY),
+    }, appPublic).listen(PORT_PUBLIC, () => {
+        console.log(`Register Portal open in https://localhost:${PORT_PUBLIC}`);
+    });
 
-createServer({
-    requestCert: false,
-    rejectUnauthorized: false,
-    maxVersion: "TLSv1.3",
-    minVersion: 'TLSv1.3',
-    ciphers: "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
-    ca: fs.readFileSync(CERTCA),
-    cert: fs.readFileSync(CERT),
-    key: fs.readFileSync(KEY),
-}, appPublic).listen(PORT_PUBLIC, () => {
-    console.log(`Register Portal open in https://localhost:${PORT_PUBLIC}`);
-});
-
-createServer({
-    requestCert: true,
-    rejectUnauthorized: false,
-    minVersion: "TLSv1.3",
-    maxVersion: "TLSv1.3",
-    ciphers: "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
-    ca: fs.readFileSync(CERTCA),
-    cert: fs.readFileSync(CERT),
-    key: fs.readFileSync(KEY),
-}, appProtected).listen(PORT_PROTECTED, () => {
-    console.log(`Gateway VPN mTLS open in https://localhost:${PORT_PROTECTED}`);
-});
+    createHttpsServer({
+        requestCert: true,
+        rejectUnauthorized: false,
+        minVersion: "TLSv1.3",
+        maxVersion: "TLSv1.3",
+        ciphers: "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
+        ca: fs.readFileSync(CERTCA),
+        cert: fs.readFileSync(CERT),
+        key: fs.readFileSync(KEY),
+    }, appProtected).listen(PORT_PROTECTED, () => {
+        console.log(`Gateway VPN mTLS open in https://localhost:${PORT_PROTECTED}`);
+    });
+}

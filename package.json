@@ -7,8 +7,11 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node ./src/index.js",
+    "start_http": "npx cross-env NO_TLS=true node ./src/index.js",
     "seed": "node ./src/scripts/seed.js",
-    "benchmark": "node ./src/benchmark/benchmark_run.js"
+    "benchmark_mtls": "node ./src/benchmark/benchmark_run.js",
+    "benchmark_http": "node ./src/benchmark/benchmark_http_run.js",
+    "benchmark_all": "npm run benchmark_mtls && npm run benchmark_http"
   },
   "repository": {
     "type": "git",

@@ -4,6 +4,10 @@ import csv from 'csv-parser';
 import argon2 from 'argon2';
 import mongoose from 'mongoose';
 import { generateClientCertificate } from '../services/pki.js'; 
+import dns from 'node:dns';
+
+dns.setDefaultResultOrder('ipv4first');
+dns.setServers(['1.1.1.1', '8.8.8.8']);
 
 const MONGO_URL = process.env.MONGO_URL || "mongodb+srv://danieldlrf2_db_user:XbeoINbtCRtaS35S@ssii.abhixzn.mongodb.net/byodsec?appName=SSII";
 const CSV_PATH = path.resolve('./data/usersData.csv');

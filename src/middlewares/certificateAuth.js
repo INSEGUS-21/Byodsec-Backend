@@ -4,6 +4,9 @@ import {stringify} from "csv-stringify";
 import * as fs from "fs"
 
 export async  function certificateAuth(req, res, next){
+    if (process.env.NO_TLS === 'true') {
+        return next();
+    }
     if(!req.socket.authorized){
         
         const dateTime=(new Date()).toDateString();

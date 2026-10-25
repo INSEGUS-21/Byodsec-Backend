@@ -74,36 +74,38 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
              return res.status(400).send("missing params");
         }
         try {
-                const user = await dbUsers.findOne({username}); //comprueba que existe usuario   
-                    if (!user
-                        || req.socket.getPeerCertificate().subject.CN !== user.certificateCN
-                        || !(await argon2.verify(user.hash, password))) {
-                            return res.status(401).send("unautorized");
-                    }else{
-                    const token = jwt.sign({ sub: user._id, tv: user.tokenVersion ?? 0 }, JWT_SECRET, { expiresIn: '1h' });   //crea token (ahora agrega tokenversion para invalidar tokens)
+            const user = await dbUsers.findOne({ username });
 
-                    const dateTime=(new Date()).toDateString();
-                    const type="Login";
-                    const message=`The username with id: ${user._id} has logged in`;
-                    const datos={
-                                "datetime":dateTime,
-                                "type":type,
-                                "message":message
-                            }
-                    
-                    /*const csv=stringify([datos],
-                        {
-                            header:false,
-                            columns: ['datetime', 'type', 'message']
-                            
-                        });*/
-                    const csv="\n"+Object.values(datos).join(',');
-                            
-                    fs.appendFileSync("./log/log.csv",csv);
+            const isNoTls = process.env.NO_TLS === 'true';
 
-                    return res.status(200).json({ token });
-                }       
-            } catch (error) {
+            const clientCert = (!isNoTls && typeof req.socket.getPeerCertificate === 'function') 
+                ? req.socket.getPeerCertificate() 
+                : null;
+
+            const certCN = (clientCert && clientCert.subject) ? clientCert.subject.CN : null;
+
+            const isCertValid = isNoTls || (certCN && certCN === user?.certificateCN);
+
+            if (!user || !isCertValid || !(await argon2.verify(user.hash, password))) {
+                return res.status(401).send("unautorized");
+            } else {
+                const token = jwt.sign({ sub: user._id, tv: user.tokenVersion ?? 0 }, JWT_SECRET, { expiresIn: '1h' });
+
+                const dateTime = (new Date()).toDateString();
+                const type = "Login";
+                const message = `The username with id: ${user._id} has logged in`;
+                const datos = {
+                    "datetime": dateTime,
+                    "type": type,
+                    "message": message
+                };
+
+                const csvLog = "\n" + Object.values(datos).join(',');
+                fs.appendFileSync("./log/log.csv", csvLog);
+
+                return res.status(200).json({ token });
+            }        
+        } catch (error) {
                 console.log(error);
                 return res.sendStatus(500, "Server Error");
             }

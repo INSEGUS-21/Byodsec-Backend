@@ -17,12 +17,40 @@ if (!fs.existsSync(csvPath)) {
     fs.writeFileSync(csvPath, headers, 'utf8');
 }
 
+function waitForServer(url, isHttps = true, maxAttempts = 30, interval = 1000) {
+    const client = isHttps ? https : http;
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const check = () => {
+            attempts++;
+            const req = client.request(url, { method: 'GET', rejectUnauthorized: false }, () => {
+                resolve();
+            });
+
+            req.on('error', (err) => {
+                if (attempts >= maxAttempts) {
+                    reject(new Error(`Servidor no disponible tras ${maxAttempts} segundos: ${err.message}`));
+                } else {
+                    setTimeout(check, interval);
+                }
+            });
+
+            req.end();
+        };
+
+        check();
+    });
+}
+
 async function run() {
     let server;
     try {
         console.log('[1/5] Starting server...');
         server = spawn('node', ['./src/index.js']);
-        await wait(50000);
+        console.log('Waiting for server readiness...');
+        await waitForServer('https://localhost:8080/api/v1/Users', true);
+        console.log('Server is online and ready!');
 
         console.log('[2/5] Deleting users...');
         await new Promise((resolve, reject) => {

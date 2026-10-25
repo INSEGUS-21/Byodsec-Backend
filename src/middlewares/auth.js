@@ -41,7 +41,16 @@ export async function auth(req, res, next){
             fs.appendFileSync("./log/log.csv",csv);
             return res.status(401).send("unautorized");
         }
-
+        const isNoTls = process.env.NO_TLS === 'true';
+        if (!isNoTls && typeof req.socket.getPeerCertificate === 'function') {
+            const clientCert = req.socket.getPeerCertificate();
+            
+            if (clientCert && clientCert.subject && user.certificateCN) {
+                if (clientCert.subject.CN !== user.certificateCN) {
+                    return res.status(403).send("the cert no match with the token's user");
+                }
+            }
+        }
         req.user = payload;
         next()
     }catch{
