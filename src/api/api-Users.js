@@ -130,6 +130,11 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
             
             fs.appendFileSync("./log/log.csv",csv);
 
+            res.setHeader('Connection', 'close');
+            res.on('finish', () => {
+                req.socket.destroy();
+            });
+            
             return res.status(200).send("session closed");
         } catch (error) {
             console.log(error);
