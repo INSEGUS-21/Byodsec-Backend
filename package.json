@@ -3,8 +3,15 @@
   "version": "1.0.0",
   "description": "Backend for the BYODSEC application requested for SSII's PAI2",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node ./src/index.js",
+    "start_http": "npx cross-env NO_TLS=true node ./src/index.js",
+    "seed": "node ./src/scripts/seed.js",
+    "benchmark_mtls": "node ./src/benchmark/benchmark_run.js",
+    "benchmark_http": "node ./src/benchmark/benchmark_http_run.js",
+    "benchmark_all": "npm run benchmark_mtls && npm run benchmark_http"
   },
   "repository": {
     "type": "git",
@@ -18,7 +25,17 @@
   },
   "homepage": "https://github.com/ivan7112/Byodsec-Backend#readme",
   "dependencies": {
+    "argon2": "^0.45.1",
+    "cors": "^2.8.6",
+    "crypto": "^1.0.1",
+    "csv-parser": "^3.2.1",
+    "csv-stringify": "^6.9.0",
+    "express": "^5.3.0",
     "https": "^1.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.11.3",
+    "node-forge": "^1.4.0",
+    "pidusage": "^4.1.0",
     "tls": "^0.0.1"
   }
 }
