@@ -68,47 +68,57 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
     });
 
     //login
-    appProtected.post(URL_BASE_API+"/login", async (req, res) => {
-        const {username, password} = req.body;
+    appProtected.post(URL_BASE_API + "/login", async (req, res) => {
+        const { username, password } = req.body;
+
         if (!(username && password)) {
-             return res.status(400).send("missing params");
+            return res.status(400).send("missing params");
         }
+
         try {
             const user = await dbUsers.findOne({ username });
 
             const isNoTls = process.env.NO_TLS === 'true';
+            const normalizeSerial = (serial) => 
+                serial ? String(serial).replace(/^-/, '').replace(/^0+/, '').toLowerCase() : null;
 
             const clientCert = (!isNoTls && typeof req.socket.getPeerCertificate === 'function') 
                 ? req.socket.getPeerCertificate() 
                 : null;
 
-            const certCN = (clientCert && clientCert.subject) ? clientCert.subject.CN : null;
+            const certSerial = clientCert ? normalizeSerial(clientCert.serialNumber) : null;
+            const userSerial = normalizeSerial(user?.certificateSerial);
 
-            const isCertValid = isNoTls || (certCN && certCN === user?.certificateCN);
+            const isCertValid = isNoTls || (certSerial !== null && certSerial === userSerial);
 
             if (!user || !isCertValid || !(await argon2.verify(user.hash, password))) {
                 return res.status(401).send("unautorized");
-            } else {
-                const token = jwt.sign({ sub: user._id, tv: user.tokenVersion ?? 0 }, JWT_SECRET, { expiresIn: '1h' });
-
-                const dateTime = (new Date()).toDateString();
-                const type = "Login";
-                const message = `The username with id: ${user._id} has logged in`;
-                const datos = {
-                    "datetime": dateTime,
-                    "type": type,
-                    "message": message
-                };
-
-                const csvLog = "\n" + Object.values(datos).join(',');
-                fs.appendFileSync("./log/log.csv", csvLog);
-
-                return res.status(200).json({ token });
-            }        
-        } catch (error) {
-                console.log(error);
-                return res.sendStatus(500, "Server Error");
             }
+
+            const token = jwt.sign(
+                { sub: user._id, tv: user.tokenVersion ?? 0 }, 
+                JWT_SECRET, 
+                { expiresIn: '1h' }
+            );
+
+            const dateTime = (new Date()).toDateString();
+            const type = "Login";
+            const message = `The username with id: ${user._id} has logged in`;
+            const datos = {
+                "datetime": dateTime,
+                "type": type,
+                "message": message
+            };
+
+            const csvLog = "\n" + Object.values(datos).join(',');
+            fs.appendFileSync("./log/log.csv", csvLog);
+
+            return res.status(200).json({ token });
+
+        } catch (error) {
+            console.error(error);
+            return res.status(500).send("Server Error");
+        }
     });
 
     //logout
@@ -134,7 +144,7 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
             res.on('finish', () => {
                 req.socket.destroy();
             });
-            
+
             return res.status(200).send("session closed");
         } catch (error) {
             console.log(error);
@@ -159,9 +169,15 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
                 }
                 else{
                     const hash = await argon2.hash(password, ARGON_OPTS);
-                    const p12Der = generateClientCertificate(username, password)
-                    const certificateCN = username
-                    await dbUsers.create({ username, hash, certificateCN});
+                    const { p12Der, serialNumber } = generateClientCertificate(username, password);
+                    const certificateCN = username;
+
+                    await dbUsers.create({ 
+                        username, 
+                        hash, 
+                        certificateCN,
+                        certificateSerial: serialNumber 
+                    });
                     res.setHeader('Content-Type', 'application/x-pkcs12');
                     res.setHeader('Content-Disposition', `attachment; filename="${username}.p12"`);
                     
@@ -197,93 +213,111 @@ export function loadBackendApiUsers(appPublic,appProtected,dbUsers){
         });
     })
 
-    appProtected.put(URL_BASE_API +"/reissue-identity", auth, async (req,res) => {
-        const {username_old, password_old, username_new, password_new } = req.body;
-        if (!validatePassword(password_new).valid){
-            return res.status(400).send("the new password's format is incorrect")
-        }
+    appProtected.put(URL_BASE_API + "/reissue-identity", auth, async (req, res) => {
+        const { username_old, password_old, username_new, password_new } = req.body;
+
         if (!(username_old && password_old && username_new && password_new)) {
-             return res.status(400).send("missing params");
+            return res.status(400).send("missing params");
         }
-        
-        try{
-            const user = await dbUsers.findOne({ username: username_old });
+
+        if (!validatePassword(password_new).valid) {
+            return res.status(400).send("the new password's format is incorrect");
+        }
+
+        try {
+            const user = await dbUsers.findById(req.user.sub);
             if (!user) {
-                return res.status(404).send('Usser not found');
+                return res.status(404).send('User not found');
             }
+
+            if (user.username !== username_old) {
+                return res.status(403).send("Forbidden: You can only reissue your own identity");
+            }
+
             const isPasswordValid = await argon2.verify(user.hash, password_old);
             if (!isPasswordValid) {
                 return res.status(401).send('incorrect password');
             }
+
             if (username_old !== username_new) {
                 const usernameExists = await dbUsers.findOne({ username: username_new });
                 if (usernameExists) {
                     return res.status(400).send('There is a user registered with this username');
                 }
             }
-            if (user.certificateCN) {
+
+            
+            if (user.certificateSerial) {
                 await RevokedCertificate.create({
-                    certificateCN: user.certificateCN,
-                    username: username_old,
+                    serialNumber: user.certificateSerial, 
+                    certificateCN: user.certificateCN || user.username,
+                    username: user.username,
                     revokedAt: new Date(),
                     reason: 'Identity and credentials update'
                 });
             }
-            const p12Der = generateClientCertificate(username_new, password_new);
+
+            
+            const { p12Der, serialNumber: newSerial } = generateClientCertificate(username_new, password_new);
             const hash_new = await argon2.hash(password_new, ARGON_OPTS);
-                    
+
             user.username = username_new;
             user.hash = hash_new;
+            user.certificateSerial = newSerial;
             user.certificateCN = username_new;
             user.tokenVersion = (user.tokenVersion || 0) + 1; 
 
             await user.save();
+
             res.setHeader('Content-Type', 'application/x-pkcs12');
             res.setHeader('Content-Disposition', `attachment; filename="${username_new}.p12"`);
-                    
-            const dateTime=(new Date()).toDateString();
-            const type="reissue";
-            const message=`The username with id: ${user._id} has regenerated certificate.`;
-            const datos={
-                            "datetime":dateTime,
-                            "type":type,
-                            "message":message
-                        }
-                  
-                        
-            const csv="\n"+Object.values(datos).join(',');
-                            
-            fs.appendFileSync("./log/log.csv",csv);
+
+            const dateTime = (new Date()).toDateString();
+            const type = "reissue";
+            const message = `The username with id: ${user._id} has regenerated certificate.`;
+            const datos = {
+                "datetime": dateTime,
+                "type": type,
+                "message": message
+            };
+
+            const csv = "\n" + Object.values(datos).join(',');
+            fs.appendFileSync("./log/log.csv", csv);
 
             return res.status(201).send(p12Der);
 
-            } catch (error) {
-                return res.status(500).send("Server Error");
-            }
-        
+        } catch (error) {
+            console.error("Error in /reissue-identity:", error);
+            return res.status(500).send("Server Error");
+        }
     });
     appProtected.post(URL_BASE_API + "/revoke", auth, async (req, res) => {
         try {
-            const user = await dbUsers.findOne({ _id: req.user.sub });
+            const user = await dbUsers.findById(req.user.sub);
             if (!user) {
                 return res.status(404).send("User not found");
             }
 
-            if (!user.certificateCN) {
+            if (!user.certificateSerial) {
                 return res.status(400).send("User does not have an active certificate");
             }
 
-            if (typeof RevokedCertificate !== 'undefined') {
-                await RevokedCertificate.create({
-                    certificateCN: user.certificateCN,
-                    username: user.username,
-                    revokedAt: new Date(),
-                    reason: req.body.reason || 'Explicit user revocation (Lost/Stolen device)'
-                });
-            }
+            await RevokedCertificate.create({
+                serialNumber: user.certificateSerial,
+                certificateCN: user.certificateCN || user.username,
+                username: user.username,
+                revokedAt: new Date(),
+                reason: req.body.reason || 'Explicit user revocation (Lost/Stolen device)'
+            });
 
+            user.certificateSerial = null;
             user.tokenVersion = (user.tokenVersion || 0) + 1;
             await user.save();
+
+            res.setHeader('Connection', 'close');
+            res.on('finish', () => {
+                req.socket.destroy();
+            });
 
             return res.status(200).send("Certificate revoked successfully. Connection closed.");
 

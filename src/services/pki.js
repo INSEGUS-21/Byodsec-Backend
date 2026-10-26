@@ -27,7 +27,11 @@ export function generateClientCertificate(username, exportPassword) {
 
     const cert = forge.pki.createCertificate();
     cert.publicKey = keys.publicKey;
-    cert.serialNumber = String(Date.now());
+
+    const rawSerial = crypto.randomBytes(15).toString('hex').toUpperCase();
+    const serialNumber = '00' + rawSerial;
+
+    cert.serialNumber = serialNumber;
     cert.validity.notBefore = new Date();
     cert.validity.notAfter = new Date();
     cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 1);
@@ -49,6 +53,9 @@ export function generateClientCertificate(username, exportPassword) {
         { generateLocalKeyId: true, friendlyName: username }
     );
 
-    const p12Der = forge.asn1.toDer(p12Asn1).getBytes();
-    return Buffer.from(p12Der, 'binary');
+    const p12Der = Buffer.from(forge.asn1.toDer(p12Asn1).getBytes(), 'binary');
+    return {
+        p12Der,
+        serialNumber
+    };
 }

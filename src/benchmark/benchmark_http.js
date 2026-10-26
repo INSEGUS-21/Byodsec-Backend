@@ -1,21 +1,34 @@
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import csv from 'csv-parser';
 
-const CONCURRENT_USERS = 300;
-const TARGET_URL = 'http://localhost:8443/messages';
 const BASE_URL = 'http://localhost:8443/api/v1';
+const TARGET_URL = 'http://localhost:8443/messages';
+const CSV_PATH = path.resolve('./data/usersData.csv');
 
 const agent = new http.Agent({
     keepAlive: false
 });
 
-const TEST_USER = {
-    username: 'ana_fuerte',
-    password: 'Xk9$#vL8nR'
-};
-
-function getValidToken() {
+function loadUsersFromCSV() {
     return new Promise((resolve, reject) => {
-        const payload = JSON.stringify(TEST_USER);
+        const users = [];
+        fs.createReadStream(CSV_PATH)
+            .pipe(csv())
+            .on('data', (row) => {
+                if (row.username && row.password) {
+                    users.push(row);
+                }
+            })
+            .on('end', () => resolve(users))
+            .on('error', reject);
+    });
+}
+
+function loginUser(user) {
+    return new Promise((resolve, reject) => {
+        const payload = JSON.stringify({ username: user.username, password: user.password });
         const req = http.request(`${BASE_URL}/login`, {
             method: 'POST',
             agent: agent,
@@ -28,10 +41,14 @@ function getValidToken() {
             res.on('data', chunk => data += chunk);
             res.on('end', () => {
                 if (res.statusCode === 200) {
-                    const json = JSON.parse(data);
-                    resolve(json.token);
+                    try {
+                        const json = JSON.parse(data);
+                        resolve(json.token);
+                    } catch (e) {
+                        reject(new Error(`Respuesta JSON inválida en login para ${user.username}`));
+                    }
                 } else {
-                    reject(new Error(`Login failed (HTTP ${res.statusCode}): ${data}`));
+                    reject(new Error(`Login fallido para ${user.username} (HTTP ${res.statusCode}): ${data}`));
                 }
             });
         });
@@ -42,9 +59,9 @@ function getValidToken() {
     });
 }
 
-async function sendRequest(userId, token) {
+function sendRequest(user, token) {
     const startTime = Date.now();
-    const payload = JSON.stringify({ message: `Test de carga usuario ${userId}` });
+    const payload = JSON.stringify({ message: `Test de carga HTTP usuario ${user.username}` });
 
     return new Promise((resolve) => {
         const req = http.request(TARGET_URL, {
@@ -70,7 +87,7 @@ async function sendRequest(userId, token) {
                 }
 
                 resolve({
-                    userId,
+                    username: user.username,
                     status: res.statusCode,
                     reply: parsedReply,
                     duration,
@@ -81,10 +98,10 @@ async function sendRequest(userId, token) {
 
         req.on('error', (err) => {
             resolve({
-                userId,
+                username: user.username,
                 status: 'ERROR',
                 error: err.message,
-                reply: null, 
+                reply: null,
                 duration: Date.now() - startTime,
                 success: false
             });
@@ -95,35 +112,50 @@ async function sendRequest(userId, token) {
     });
 }
 
+async function executeUserFlow(user) {
+    try {
+        const token = await loginUser(user);
+        return await sendRequest(user, token);
+    } catch (err) {
+        return {
+            username: user.username,
+            status: 'ERROR',
+            error: err.message,
+            reply: null,
+            duration: 0,
+            success: false
+        };
+    }
+}
+
 async function runBenchmark() {
-    console.log(`Starting load test with ${CONCURRENT_USERS} concurrent HTTP users (no TLS)...`);
-    const token = await getValidToken();
+    const users = await loadUsersFromCSV();
+    console.log(`Starting load test with ${users.length} unique concurrent HTTP users (no TLS)...`);
     const globalStart = Date.now();
-   
-    const promises = Array.from({ length: CONCURRENT_USERS }, (_, i) => sendRequest(i + 1, token));
-    const results = await Promise.all(promises);
+
+    const results = await Promise.all(users.map(user => executeUserFlow(user)));
 
     const totalTime = Date.now() - globalStart;
     const successful = results.filter(r => r.success).length;
     const failed = results.filter(r => !r.success).length;
-    const avgLatency = results.reduce((acc, r) => acc + r.duration, 0) / results.length;
+    const avgLatency = results.reduce((acc, r) => acc + r.duration, 0) / (results.length || 1);
 
     console.log("\n --- SERVER RESPONSES (HTTP) ---");
     results.forEach((r) => {
         if (r.success) {
-            console.log(`[User ${r.userId}] Response (HTTP ${r.status}):`, r.reply);
+            console.log(`[User ${r.username}] Response (HTTP ${r.status}):`, r.reply);
         } else {
-            console.log(`[User ${r.userId}] Failed (HTTP ${r.status}):`, r.error || r.reply);
+            console.log(`[User ${r.username}] Failed (HTTP ${r.status}):`, r.error || r.reply);
         }
     });
 
-    console.log("\n --- BENCHMARK's RESULTS (HTTP) ---");
-    console.log(`Total users: ${CONCURRENT_USERS}`);
+    console.log("\n --- BENCHMARK's RESULTS ---");
+    console.log(`Total users: ${users.length}`);
     console.log(`Succesful requests (200 OK): ${successful}`);
     console.log(`failed request: ${failed}`);
     console.log(`Total time: ${totalTime} ms`);
     console.log(`RTT average latency: ${avgLatency.toFixed(2)} ms`);
-    console.log(`Throughput estimated: ${(CONCURRENT_USERS / (totalTime / 1000)).toFixed(2)} req/sec`);
+    console.log(`Throughput estimated: ${(users.length / (totalTime / 1000)).toFixed(2)} req/sec`);
 }
 
 runBenchmark();

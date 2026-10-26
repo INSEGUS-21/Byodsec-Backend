@@ -27,7 +27,7 @@ appPublic.use(cors());
 appPublic.use(express.json());
 
 appProtected.use(cors({
-  origin: "https://localhost:5173",
+  origin: "https://localhost:3000",
   credentials: true,
 }));
 appProtected.use(express.json());
@@ -54,7 +54,8 @@ const UserSchema = new mongoose.Schema({
         required: true
     },
     tokenVersion: { type: Number, default: 0 },
-    certificateCN: { type: String, unique: true, sparse: true }
+    certificateCN: { type: String, unique: true, sparse: true },
+    certificateSerial: { type: String }
 });
 
 export const dbUsers = conn.model('User', UserSchema, 'users-data');

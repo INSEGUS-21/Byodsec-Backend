@@ -1,6 +1,7 @@
 import { spawn, execSync } from 'child_process';
 import fs from 'fs';
 import http from 'http';
+import https from 'https';
 import pidusage from 'pidusage';
 
 const LOG_DIR = './log';
@@ -10,13 +11,12 @@ const logPath = `${LOG_DIR}/benchmark_http_${Date.now()}.log`;
 const csvPath = `${LOG_DIR}/metrics_http.csv`;
 const logStream = fs.createWriteStream(logPath, { flags: 'a' });
 
-const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
 if (!fs.existsSync(csvPath)) {
     const headers = 'timestamp,total_users,successful,failed,total_time_ms,avg_latency_ms,throughput_req_sec,peak_ram_mb,avg_cpu_percent,peak_cpu_percent\n';
     fs.writeFileSync(csvPath, headers, 'utf8');
 }
-function waitForServer(url, isHttps = true, maxAttempts = 30, interval = 1000) {
+
+function waitForServer(url, isHttps = false, maxAttempts = 30, interval = 1000) {
     const client = isHttps ? https : http;
     return new Promise((resolve, reject) => {
         let attempts = 0;
@@ -45,34 +45,19 @@ function waitForServer(url, isHttps = true, maxAttempts = 30, interval = 1000) {
 async function run() {
     let server;
     try {
-        console.log('[1/5] Starting server in HTTP mode (NO_TLS=true)...');
+        console.log('[1/4] Arrancando servidor Backend (HTTP, NO_TLS=true)...');
         server = spawn('node', ['./src/index.js'], {
             env: { ...process.env, NO_TLS: 'true' }
         });
-        console.log('Waiting for HTTP server readiness...');
-        await waitForServer('http://localhost:8080/api/v1/Users', false);
-        console.log('HTTP Server is online and ready!');
 
-        console.log('[2/5] Deleting users over HTTP...');
-        await new Promise((resolve, reject) => {
-            const req = http.request('http://localhost:8080/api/v1/Users', { 
-                method: 'DELETE'
-            }, (res) => {
-                if (res.statusCode === 200) {
-                    console.log(`Users deleted successfully (HTTP ${res.statusCode})`);
-                    resolve();
-                } else {
-                    reject(new Error(`Delete failed with HTTP status ${res.statusCode}`));
-                }
-            });
-            req.on('error', (err) => reject(new Error(`Delete request failed: ${err.message}`)));
-            req.end();
-        });
+        console.log('Esperando disponibilidad del servidor...');
+        await waitForServer('http://localhost:8080/api/v1/auth-trigger', false);
+        console.log('¡Servidor online y listo!');
 
-        console.log('[3/5] Seeding database...');
-        execSync('npm run seed', { stdio: 'inherit' });
+        console.log('[2/4] Poblando base de datos y generando certificados...');
+        execSync('node ./src/scripts/seed.js', { stdio: 'inherit' });
 
-        console.log(`[4/5] Running HTTP benchmark (Logs: ${logPath})...`);
+        console.log(`[3/4] Ejecutando benchmark multi-identidad HTTP (Logs: ${logPath})...`);
         const statsHistory = [];
         const monitorInterval = setInterval(async () => {
             if (server && server.pid) {
@@ -98,7 +83,7 @@ async function run() {
             });
             bench.on('close', (code) => {
                 if (code === 0) resolve();
-                else reject(new Error(`Benchmark failed with exit code ${code}`));
+                else reject(new Error(`Benchmark falló con código ${code}`));
             });
         });
 
@@ -114,11 +99,11 @@ async function run() {
             maxCpu = Math.max(...statsHistory.map(s => s.cpu)).toFixed(2);
 
             const metricsSummary = `
-            --- SERVER RESOURCE USAGE (HTTP) ---
+            --- SERVER RESOURCE USAGE ---
             Peak RAM Usage : ${maxRamMB} MB
             Average CPU    : ${avgCpu} %
-            Peak CPU       : ${maxCpu} %
-            ------------------------------------\n`;
+            Peak CPU        : ${maxCpu} %
+            ------------------------------\n`;
 
             console.log(metricsSummary);
             logStream.write(metricsSummary);
@@ -142,15 +127,15 @@ async function run() {
         const csvRow = `${timestamp},${totalUsers},${successful},${failed},${totalTime},${avgLatency},${throughput},${maxRamMB},${avgCpu},${maxCpu}\n`;
         fs.appendFileSync(csvPath, csvRow, 'utf8');
 
-        console.log(`Stats saved in: ${csvPath}`);
-        console.log('[5/5] HTTP Benchmark completed successfully!');
+        console.log(`[4/4] Métricas registradas en: ${csvPath}`);
+        console.log('¡Prueba de rendimiento HTTP finalizada con éxito!');
     } catch (error) {
-        console.error(`\n Step failed: ${error.message}`);
+        console.error(`\n Error en la ejecución: ${error.message}`);
         logStream.write(`\n ERROR: ${error.message}\n`);
         process.exitCode = 1;
     } finally {
         if (server && server.pid) {
-            console.log('Stopping server and releasing ports...');
+            console.log('Deteniendo servidor Backend...');
             if (process.platform === 'win32') {
                 try {
                     execSync(`taskkill /F /T /PID ${server.pid}`, { stdio: 'ignore' });

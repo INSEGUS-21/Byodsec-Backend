@@ -20,7 +20,7 @@ const ARGON_OPTS = {
     parallelism: 1
 };
 
-const UserSchema= new mongoose.Schema({
+const UserSchema = new mongoose.Schema({
     username: {
         type: String,
         unique: true,
@@ -28,14 +28,14 @@ const UserSchema= new mongoose.Schema({
     },
     hash: String,
     tokenVersion: { type: Number, default: 0 },
-    certificateCN: { type:String, unique: true, sparse: true}
+    certificateCN: { type: String, sparse: true },
+    certificateSerial: { type: String }
 });
 
 const User = mongoose.model('User', UserSchema, 'users-data');
 
 async function seedDatabase() {
     try {
-        
         await mongoose.connect(MONGO_URL);
         console.log('MongoDB connected');
 
@@ -44,9 +44,10 @@ async function seedDatabase() {
             await User.deleteMany({});
         }
 
-        if (!fs.existsSync(CERTS_FOLDER)) {
-            fs.mkdirSync(CERTS_FOLDER, { recursive: true });
+        if (fs.existsSync(CERTS_FOLDER)) {
+            fs.rmSync(CERTS_FOLDER, { recursive: true, force: true });
         }
+        fs.mkdirSync(CERTS_FOLDER, { recursive: true });
 
         const rows = [];
         await new Promise((resolve, reject) => {
@@ -67,16 +68,21 @@ async function seedDatabase() {
             const certificateCN = username;
             const hash = await argon2.hash(password, ARGON_OPTS);
             
-            const p12Der = generateClientCertificate(username, password);
+            const { p12Der, serialNumber } = generateClientCertificate(username, password);
 
             const filePath = path.join(CERTS_FOLDER, `${username}.p12`);
             fs.writeFileSync(filePath, p12Der);
 
-            usersToInsert.push({ username, hash, certificateCN});
+            usersToInsert.push({ 
+                username, 
+                hash, 
+                certificateCN,
+                certificateSerial: serialNumber 
+            });
         }
 
         await User.insertMany(usersToInsert);
-        console.log("Initial users inserted correctly")
+        console.log("Initial users inserted correctly");
     } catch (err) {
         console.error("Error seedDatabase:", err);
     } finally {
